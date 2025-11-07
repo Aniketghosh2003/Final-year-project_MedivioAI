@@ -1,0 +1,360 @@
+import { useState, useRef } from 'react';
+import { Upload, X, CheckCircle, AlertCircle, Loader2, Image as ImageIcon, FileText } from 'lucide-react';
+import axios from 'axios';
+
+const API_URL = 'http://localhost:5000';
+
+export default function SinglePrediction() {
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [preview, setPreview] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
+  const fileInputRef = useRef(null);
+
+  const handleFileSelect = (event) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      if (!file.type.startsWith('image/')) {
+        setError('Please select a valid image file');
+        return;
+      }
+      
+      setSelectedFile(file);
+      setError(null);
+      setResult(null);
+
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleDrop = (event) => {
+    event.preventDefault();
+    const file = event.dataTransfer.files?.[0];
+    if (file) {
+      if (!file.type.startsWith('image/')) {
+        setError('Please select a valid image file');
+        return;
+      }
+      
+      setSelectedFile(file);
+      setError(null);
+      setResult(null);
+
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleDragOver = (event) => {
+    event.preventDefault();
+  };
+
+  const handleAnalyze = async () => {
+    if (!selectedFile) {
+      setError('Please select an image first');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setResult(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('image', selectedFile);
+
+      const response = await axios.post(`${API_URL}/api/predict`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      if (response.data.success) {
+        setResult(response.data);
+      } else {
+        setError(response.data.error || 'Analysis failed');
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to connect to server. Make sure the backend is running on port 5000.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReset = () => {
+    setSelectedFile(null);
+    setPreview(null);
+    setResult(null);
+    setError(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  return (
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12 animate-fade-in">
+      {/* Header */}
+      <div className="text-center mb-12">
+        <h1 className="text-4xl font-bold text-gray-900 mb-4">
+          Single Image Analysis
+        </h1>
+        <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+          Upload a chest X-ray image for instant pneumonia detection analysis
+        </p>
+      </div>
+
+      <div className="grid lg:grid-cols-2 gap-8">
+        {/* Upload Section */}
+        <div className="space-y-6">
+          <div className="bg-white rounded-2xl shadow-lg p-8 border border-gray-200">
+            <h2 className="text-xl font-semibold text-gray-900 mb-6 flex items-center gap-2">
+              <Upload className="h-5 w-5 text-blue-600" />
+              Upload X-Ray Image
+            </h2>
+
+            {/* Drag and Drop Area */}
+            <div
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
+              onClick={() => fileInputRef.current?.click()}
+              className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-blue-500 hover:bg-blue-50/50 transition-all"
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+
+              {!preview ? (
+                <div className="space-y-4">
+                  <div className="flex justify-center">
+                    <div className="bg-blue-100 p-4 rounded-full">
+                      <ImageIcon className="h-10 w-10 text-blue-600" />
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-lg font-medium text-gray-900 mb-2">
+                      Click to upload or drag and drop
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      PNG, JPG or JPEG (MAX. 10MB)
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="relative inline-block">
+                    <img
+                      src={preview}
+                      alt="Preview"
+                      className="max-h-64 rounded-lg shadow-md"
+                    />
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleReset();
+                      }}
+                      className="absolute -top-2 -right-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-600 transition-colors"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <p className="text-sm text-gray-600 font-medium">
+                    {selectedFile?.name}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-4 mt-6">
+              <button
+                onClick={handleAnalyze}
+                disabled={!selectedFile || loading}
+                className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    Analyzing...
+                  </>
+                ) : (
+                  <>
+                    <FileText className="h-5 w-5" />
+                    Analyze Image
+                  </>
+                )}
+              </button>
+
+              {selectedFile && (
+                <button
+                  onClick={handleReset}
+                  disabled={loading}
+                  className="px-6 py-3 rounded-xl font-semibold border-2 border-gray-300 text-gray-700 hover:bg-gray-50 transition-all disabled:opacity-50"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+
+            {/* Error Message */}
+            {error && (
+              <div className="mt-6 bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-red-900">Error</p>
+                  <p className="text-sm text-red-700 mt-1">{error}</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Info Card */}
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
+            <h3 className="font-semibold text-blue-900 mb-3">Important Notes:</h3>
+            <ul className="space-y-2 text-sm text-blue-800">
+              <li className="flex items-start gap-2">
+                <span className="text-blue-600 mt-1">•</span>
+                <span>Upload clear chest X-ray images for best results</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-blue-600 mt-1">•</span>
+                <span>Supported formats: JPEG, JPG, PNG</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-blue-600 mt-1">•</span>
+                <span>This is an AI assistant tool, not a replacement for professional medical diagnosis</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        {/* Results Section */}
+        <div>
+          <div className="bg-white rounded-2xl shadow-lg p-8 border border-gray-200 sticky top-24">
+            <h2 className="text-xl font-semibold text-gray-900 mb-6">
+              Analysis Results
+            </h2>
+
+            {!result && !loading && (
+              <div className="text-center py-12">
+                <div className="bg-gray-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <FileText className="h-10 w-10 text-gray-400" />
+                </div>
+                <p className="text-gray-500">
+                  Upload and analyze an image to see results
+                </p>
+              </div>
+            )}
+
+            {loading && (
+              <div className="text-center py-12">
+                <Loader2 className="h-12 w-12 text-blue-600 animate-spin mx-auto mb-4" />
+                <p className="text-gray-600 font-medium">Analyzing image...</p>
+                <p className="text-sm text-gray-500 mt-2">This may take a few seconds</p>
+              </div>
+            )}
+
+            {result && (
+              <div className="space-y-6 animate-fade-in">
+                {/* Prediction Result */}
+                <div className={`rounded-xl p-6 ${
+                  result.prediction === 'PNEUMONIA' 
+                    ? 'bg-red-50 border-2 border-red-200' 
+                    : 'bg-emerald-50 border-2 border-emerald-200'
+                }`}>
+                  <div className="flex items-center gap-3 mb-3">
+                    {result.prediction === 'PNEUMONIA' ? (
+                      <AlertCircle className="h-8 w-8 text-red-600" />
+                    ) : (
+                      <CheckCircle className="h-8 w-8 text-emerald-600" />
+                    )}
+                    <div>
+                      <p className="text-sm text-gray-600 font-medium">Prediction</p>
+                      <p className={`text-2xl font-bold ${
+                        result.prediction === 'PNEUMONIA' ? 'text-red-900' : 'text-emerald-900'
+                      }`}>
+                        {result.prediction}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-4">
+                    <div className="flex justify-between text-sm mb-2">
+                      <span className="font-medium text-gray-700">Confidence</span>
+                      <span className="font-bold text-gray-900">{result.confidence}%</span>
+                    </div>
+                    <div className="bg-white/50 rounded-full h-3 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-1000 ${
+                          result.prediction === 'PNEUMONIA' ? 'bg-red-500' : 'bg-emerald-500'
+                        }`}
+                        style={{ width: `${result.confidence}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Probability Breakdown */}
+                <div className="space-y-4">
+                  <h3 className="font-semibold text-gray-900">Detailed Probability</h3>
+                  
+                  <div className="space-y-3">
+                    <div>
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-sm font-medium text-gray-700">Normal</span>
+                        <span className="text-sm font-bold text-gray-900">
+                          {result.probability.normal}%
+                        </span>
+                      </div>
+                      <div className="bg-gray-200 rounded-full h-2 overflow-hidden">
+                        <div
+                          className="bg-emerald-500 h-full rounded-full transition-all duration-1000"
+                          style={{ width: `${result.probability.normal}%` }}
+                        ></div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-sm font-medium text-gray-700">Pneumonia</span>
+                        <span className="text-sm font-bold text-gray-900">
+                          {result.probability.pneumonia}%
+                        </span>
+                      </div>
+                      <div className="bg-gray-200 rounded-full h-2 overflow-hidden">
+                        <div
+                          className="bg-red-500 h-full rounded-full transition-all duration-1000"
+                          style={{ width: `${result.probability.pneumonia}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Disclaimer */}
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <p className="text-xs text-yellow-800 leading-relaxed">
+                    <strong>Disclaimer:</strong> This AI analysis is for informational purposes only 
+                    and should not replace professional medical diagnosis. Please consult with a 
+                    qualified healthcare provider for medical advice.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
