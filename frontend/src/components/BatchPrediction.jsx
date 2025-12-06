@@ -367,7 +367,7 @@ export default function BatchPrediction() {
                             <span className="text-gray-500">-</span>
                           ) : (
                             <div className="flex items-center gap-2">
-                              <div className="flex-1 bg-gray-200 rounded-full h-2 min-w-[80px]">
+                              <div className="flex-1 bg-gray-200 rounded-full h-2 min-w-\[80px\]">
                                 <div
                                   className={`h-full rounded-full ${
                                     result.prediction === 'PNEUMONIA'
