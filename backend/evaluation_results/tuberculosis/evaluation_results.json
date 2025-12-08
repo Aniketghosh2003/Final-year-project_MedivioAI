@@ -1,0 +1,33 @@
+{
+    "evaluation_date": "2025-12-08 19:07:20",
+    "model_path": "../models/tuberculosis/tb_detection_model_final.h5",
+    "test_samples": 630,
+    "metrics": {
+        "accuracy": 0.9888888597488403,
+        "precision": 0.9803921580314636,
+        "recall": 0.9523809552192688,
+        "f1_score": 0.966183574879227,
+        "auc_roc": 0.9984580874443054,
+        "auc_pr": 0.9929493176876478,
+        "mcc": 0.9596818768804767,
+        "loss": 0.03787185996770859
+    },
+    "confusion_matrix": {
+        "true_negatives": 523,
+        "false_positives": 2,
+        "false_negatives": 5,
+        "true_positives": 100
+    },
+    "class_performance": {
+        "normal": {
+            "samples": 525,
+            "correctly_classified": 523,
+            "misclassified": 2
+        },
+        "tuberculosis": {
+            "samples": 105,
+            "correctly_classified": 100,
+            "misclassified": 5
+        }
+    }
+}

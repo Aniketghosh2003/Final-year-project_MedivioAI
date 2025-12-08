@@ -13,22 +13,27 @@ import base64
 app = Flask(__name__)
 CORS(app)
 
-# Load model
-MODEL_PATH = 'models/pneumonia_model_best.keras'
-model = None
+# Load models
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-def load_model():
-    global model
-    try:
-        model = keras.models.load_model(MODEL_PATH)
-        print("Model loaded successfully!")
-        return True
-    except Exception as e:
-        print(f"Error loading model: {e}")
-        return False
+MODEL_PATHS = {
+    "pneumonia": os.path.join(BASE_DIR, 'models', 'pneumonia', 'pneumonia_model_best.keras'),
+    "tuberculosis": os.path.join(BASE_DIR, 'models', 'tuberculosis', 'tb_detection_model_best.h5'),
+}
 
-# Load model on startup
-load_model()
+models = {}
+
+def load_models():
+    """Load available models into memory."""
+    for name, path in MODEL_PATHS.items():
+        try:
+            models[name] = keras.models.load_model(path)
+            print(f"Loaded {name} model from {path}")
+        except Exception as e:
+            print(f"Error loading {name} model from {path}: {e}")
+
+# Load models on startup
+load_models()
 
 def preprocess_image(image):
     """Preprocess image for model prediction"""
@@ -54,11 +59,10 @@ def index():
     return jsonify({
         "app": "MedivioAI Backend",
         "status": "running",
-        "model_loaded": model is not None,
+        "models_loaded": list(models.keys()),
         "endpoints": [
             {"method": "GET", "path": "/api/health"},
-            {"method": "POST", "path": "/api/predict"},
-            {"method": "POST", "path": "/api/batch-predict"}
+            {"method": "POST", "path": "/api/predict"}
         ]
     })
 
@@ -72,19 +76,22 @@ def health_check():
     """Health check endpoint"""
     return jsonify({
         'status': 'healthy',
-        'model_loaded': model is not None
+        'models_loaded': list(models.keys())
     })
 
 @app.route('/api/predict', methods=['POST'])
 def predict():
     """Prediction endpoint"""
     try:
-        # Check if model is loaded
-        if model is None:
+        # Select model (default to pneumonia)
+        model_name = request.form.get('model', 'pneumonia').lower()
+        if model_name not in models:
             return jsonify({
                 'success': False,
-                'error': 'Model not loaded'
-            }), 500
+                'error': f"Requested model '{model_name}' is not available",
+                'available_models': list(models.keys()),
+            }), 400
+        model = models[model_name]
         
         # Check if image is in request
         if 'image' not in request.files:
@@ -102,22 +109,28 @@ def predict():
         # Make prediction
         prediction = model.predict(processed_image, verbose=0)
         probability = float(prediction[0][0])
-        
-        # Determine class
+
+        # Determine class labels based on model
+        if model_name == 'tuberculosis':
+            positive_label = 'TUBERCULOSIS'
+        else:
+            positive_label = 'PNEUMONIA'
+
         if probability > 0.5:
-            predicted_class = 'PNEUMONIA'
+            predicted_class = positive_label
             confidence = probability * 100
         else:
             predicted_class = 'NORMAL'
             confidence = (1 - probability) * 100
-        
+
         return jsonify({
             'success': True,
+            'model_used': model_name,
             'prediction': predicted_class,
             'confidence': round(confidence, 2),
             'probability': {
                 'normal': round((1 - probability) * 100, 2),
-                'pneumonia': round(probability * 100, 2)
+                positive_label.lower(): round(probability * 100, 2)
             }
         })
     
@@ -127,62 +140,6 @@ def predict():
             'error': str(e)
         }), 500
 
-@app.route('/api/batch-predict', methods=['POST'])
-def batch_predict():
-    """Batch prediction endpoint"""
-    try:
-        if model is None:
-            return jsonify({
-                'success': False,
-                'error': 'Model not loaded'
-            }), 500
-        
-        files = request.files.getlist('images')
-        
-        if not files:
-            return jsonify({
-                'success': False,
-                'error': 'No images provided'
-            }), 400
-        
-        results = []
-        
-        for file in files:
-            try:
-                image = Image.open(io.BytesIO(file.read()))
-                processed_image = preprocess_image(image)
-                
-                prediction = model.predict(processed_image, verbose=0)
-                probability = float(prediction[0][0])
-                
-                if probability > 0.5:
-                    predicted_class = 'PNEUMONIA'
-                    confidence = probability * 100
-                else:
-                    predicted_class = 'NORMAL'
-                    confidence = (1 - probability) * 100
-                
-                results.append({
-                    'filename': file.filename,
-                    'prediction': predicted_class,
-                    'confidence': round(confidence, 2)
-                })
-            except Exception as e:
-                results.append({
-                    'filename': file.filename,
-                    'error': str(e)
-                })
-        
-        return jsonify({
-            'success': True,
-            'results': results
-        })
-    
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

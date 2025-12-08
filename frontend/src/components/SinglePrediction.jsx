@@ -4,12 +4,13 @@ import axios from 'axios';
 
 const API_URL = 'http://localhost:5000';
 
-export default function SinglePrediction() {
+export default function SinglePrediction({ mode = 'pneumonia' }) {
   const [selectedFile, setSelectedFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+  const [model] = useState(mode === 'tuberculosis' ? 'tuberculosis' : 'pneumonia');
   const fileInputRef = useRef(null);
 
   const handleFileSelect = (event) => {
@@ -71,6 +72,7 @@ export default function SinglePrediction() {
     try {
       const formData = new FormData();
       formData.append('image', selectedFile);
+      formData.append('model', model);
 
       const response = await axios.post(`${API_URL}/api/predict`, formData, {
         headers: {
@@ -105,10 +107,11 @@ export default function SinglePrediction() {
       {/* Header */}
       <div className="text-center mb-12">
         <h1 className="text-4xl font-bold text-gray-900 mb-4">
-          Single Image Analysis
+          {mode === 'tuberculosis' ? 'Tuberculosis Scan' : 'Pneumonia Scan'}
         </h1>
         <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-          Upload a chest X-ray image for instant pneumonia detection analysis
+          Upload a medical image and let the assistant analyze it using the
+          selected disease model.
         </p>
       </div>
 
@@ -118,8 +121,16 @@ export default function SinglePrediction() {
           <div className="bg-white rounded-2xl shadow-lg p-8 border border-gray-200">
             <h2 className="text-xl font-semibold text-gray-900 mb-6 flex items-center gap-2">
               <Upload className="h-5 w-5 text-blue-600" />
-              Upload X-Ray Image
+              Upload Medical Image
             </h2>
+
+            {/* Model Indicator */}
+            <div className="mb-6">
+              <p className="text-sm font-medium text-gray-700 mb-1">Disease model</p>
+              <p className="inline-flex items-center px-4 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-100">
+                {mode === 'tuberculosis' ? 'Tuberculosis (X-ray)' : 'Pneumonia (X-ray)'}
+              </p>
+            </div>
 
             {/* Drag and Drop Area */}
             <div
@@ -222,19 +233,29 @@ export default function SinglePrediction() {
 
           {/* Info Card */}
           <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
-            <h3 className="font-semibold text-blue-900 mb-3">Important Notes:</h3>
+            <h3 className="font-semibold text-blue-900 mb-3">How to use this prototype</h3>
             <ul className="space-y-2 text-sm text-blue-800">
               <li className="flex items-start gap-2">
                 <span className="text-blue-600 mt-1">•</span>
-                <span>Upload clear chest X-ray images for best results</span>
+                <span>Use clear, well‑centered medical images captured from trusted sources.</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-blue-600 mt-1">•</span>
-                <span>Supported formats: JPEG, JPG, PNG</span>
+                <span>Supported formats: JPEG, JPG, PNG (maximum 10MB per image).</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-blue-600 mt-1">•</span>
-                <span>This is an AI assistant tool, not a replacement for professional medical diagnosis</span>
+                <span>
+                  This is an experimental AI assistant, not a medical device
+                  and not a replacement for professional diagnosis.
+                </span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-blue-600 mt-1">•</span>
+                <span>
+                  Current model is tuned for pneumonia on radiology images and
+                  may not generalize to all image types.
+                </span>
               </li>
             </ul>
           </div>

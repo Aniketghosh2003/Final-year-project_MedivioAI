@@ -6,8 +6,7 @@ export default function Header({ currentPage, onNavigate }) {
 
   const navItems = [
     { id: 'home', label: 'Home' },
-    { id: 'single', label: 'Single Scan' },
-    { id: 'batch', label: 'Batch Analysis' },
+    { id: 'single', label: 'Scan' },
   ];
 
   return (

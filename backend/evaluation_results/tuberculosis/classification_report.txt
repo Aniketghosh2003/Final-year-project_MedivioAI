@@ -1,0 +1,11 @@
+TUBERCULOSIS DETECTION - CLASSIFICATION REPORT
+============================================================
+
+              precision    recall  f1-score   support
+
+      Normal     0.9905    0.9962    0.9934       525
+Tuberculosis     0.9804    0.9524    0.9662       105
+
+    accuracy                         0.9889       630
+   macro avg     0.9855    0.9743    0.9798       630
+weighted avg     0.9888    0.9889    0.9888       630

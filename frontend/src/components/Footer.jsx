@@ -11,8 +11,9 @@ export default function Footer() {
           <div>
             <h3 className="text-lg font-semibold text-gray-900 mb-3">MedivioAI</h3>
             <p className="text-gray-600 text-sm leading-relaxed">
-              AI-powered pneumonia detection system using advanced deep learning 
-              to assist medical professionals in quick and accurate diagnosis.
+              A research prototype for AI-assisted medical image analysis,
+              exploring how deep learning can surface helpful signals for
+              clinicians and patients.
             </p>
           </div>
 
