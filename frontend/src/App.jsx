@@ -58,9 +58,9 @@ export default function App() {
           </div>
         );
       case 'scan-pneumonia':
-        return <SinglePrediction mode="pneumonia" />;
+        return <SinglePrediction mode="pneumonia" onBack={() => setCurrentPage('single')} />;
       case 'scan-tb':
-        return <SinglePrediction mode="tuberculosis" />;
+        return <SinglePrediction mode="tuberculosis" onBack={() => setCurrentPage('single')} />;
       default:
         return <HomePage onNavigate={setCurrentPage} />;
     }
