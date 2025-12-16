@@ -1,0 +1,37 @@
+# Global ignores for the MedivioAI project
+
+# Python / backend
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Build / cache
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Jupyter / checkpoints
+.ipynb_checkpoints/
+
+# Backend data, models, logs, and evaluation outputs
+backend/data/
+backend/evaluation_results/
+backend/logs/
+backend/models/
+
+# Frontend build and dependencies (kept also by frontend/.gitignore)
+frontend/node_modules/
+frontend/dist/
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
