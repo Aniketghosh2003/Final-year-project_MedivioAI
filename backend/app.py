@@ -16,6 +16,7 @@ CORS(app)
 # Load models
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+# Disease detection models
 MODEL_PATHS = {
     "pneumonia": os.path.join(BASE_DIR, 'models', 'pneumonia', 'pneumonia_model_best.keras'),
     "tuberculosis": os.path.join(BASE_DIR, 'models', 'tuberculosis', 'tb_detection_model_best.h5'),
@@ -23,8 +24,11 @@ MODEL_PATHS = {
 
 models = {}
 
+
 def load_models():
-    """Load available models into memory."""
+    """Load available disease models into memory."""
+
+    # Load disease-specific models
     for name, path in MODEL_PATHS.items():
         try:
             models[name] = keras.models.load_model(path)
@@ -32,25 +36,26 @@ def load_models():
         except Exception as e:
             print(f"Error loading {name} model from {path}: {e}")
 
+
 # Load models on startup
 load_models()
 
-def preprocess_image(image):
-    """Preprocess image for model prediction"""
+
+def preprocess_image(image, size=(224, 224)):
+    """Preprocess image for model prediction."""
     # Convert to RGB if needed
     if image.mode != 'RGB':
         image = image.convert('RGB')
-    
-    # Resize to model input size
-    image = image.resize((224, 224))
-    
+
+    # Resize to desired input size
+    image = image.resize(size)
+
     # Convert to array and normalize
-    img_array = np.array(image)
-    img_array = img_array / 255.0
-    
+    img_array = np.array(image).astype("float32") / 255.0
+
     # Add batch dimension
     img_array = np.expand_dims(img_array, axis=0)
-    
+
     return img_array
 
 @app.get("/")
@@ -83,16 +88,6 @@ def health_check():
 def predict():
     """Prediction endpoint"""
     try:
-        # Select model (default to pneumonia)
-        model_name = request.form.get('model', 'pneumonia').lower()
-        if model_name not in models:
-            return jsonify({
-                'success': False,
-                'error': f"Requested model '{model_name}' is not available",
-                'available_models': list(models.keys()),
-            }), 400
-        model = models[model_name]
-        
         # Check if image is in request
         if 'image' not in request.files:
             return jsonify({
@@ -101,13 +96,27 @@ def predict():
             }), 400
         
         file = request.files['image']
+        image_bytes = file.read()
+
+        # Open image once and reuse
+        image = Image.open(io.BytesIO(image_bytes))
         
-        # Read and process image
-        image = Image.open(io.BytesIO(file.read()))
-        processed_image = preprocess_image(image)
-        
+        # Run disease-specific model (pneumonia / tuberculosis)
+        # Select disease model (default to pneumonia)
+        model_name = request.form.get('model', 'pneumonia').lower()
+        if model_name not in models:
+            return jsonify({
+                'success': False,
+                'error': f"Requested model '{model_name}' is not available",
+                'available_models': list(models.keys()),
+            }), 400
+        model = models[model_name]
+
+        # Reuse the same image object but preprocess for disease model input size (224x224)
+        disease_input = preprocess_image(image, size=(224, 224))
+
         # Make prediction
-        prediction = model.predict(processed_image, verbose=0)
+        prediction = model.predict(disease_input, verbose=0)
         probability = float(prediction[0][0])
 
         # Determine class labels based on model
