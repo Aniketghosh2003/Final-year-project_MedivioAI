@@ -5,7 +5,7 @@ import axios from 'axios';
 
 const API_URL = 'http://localhost:5000';
 
-export default function SinglePrediction({ mode = 'pneumonia', onBack }) {
+export default function SinglePrediction({ mode = 'pneumonia', token, onBack }) {
   const [selectedFile, setSelectedFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -75,11 +75,14 @@ export default function SinglePrediction({ mode = 'pneumonia', onBack }) {
       formData.append('image', selectedFile);
       formData.append('model', model);
 
-      const response = await axios.post(`${API_URL}/api/predict`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+      const headers = {
+        'Content-Type': 'multipart/form-data',
+      };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const response = await axios.post(`${API_URL}/api/predict`, formData, { headers });
 
       if (response.data.success) {
         setResult(response.data);
@@ -109,15 +112,14 @@ export default function SinglePrediction({ mode = 'pneumonia', onBack }) {
     const now = new Date();
     const timestamp = now.toLocaleString();
     const modelUsed = result.model_used || model;
-    const positiveKey = modelUsed === 'tuberculosis' ? 'tuberculosis' : 'pneumonia';
-    const positiveLabel = positiveKey.charAt(0).toUpperCase() + positiveKey.slice(1);
+    const positiveLabel = modelUsed === 'tuberculosis' ? 'Tuberculosis' : 'Pneumonia';
 
     const doc = new jsPDF();
     let y = 20;
 
     // Title
     doc.setFontSize(18);
-    doc.text('MedivioAI  Scan Report', 105, y, { align: 'center' });
+    doc.text('MedivioAI   Scan Report', 105, y, { align: 'center' });
     y += 12;
 
     // Metadata
@@ -127,20 +129,6 @@ export default function SinglePrediction({ mode = 'pneumonia', onBack }) {
     doc.text(`Disease model: ${positiveLabel}`, 14, y); y += 6;
     doc.text(`Prediction: ${result.prediction}`, 14, y); y += 6;
     doc.text(`Confidence: ${result.confidence}%`, 14, y); y += 10;
-
-    // Probabilities
-    doc.setFontSize(12);
-    doc.text('Probabilities', 14, y);
-    y += 7;
-    doc.setFontSize(11);
-    doc.text(`Normal: ${result.probability?.normal ?? 'N/A'}%`, 20, y);
-    y += 6;
-    doc.text(
-      `${positiveLabel}: ${result.probability?.[positiveKey] ?? 'N/A'}%`,
-      20,
-      y
-    );
-    y += 10;
 
     // Notes / disclaimer
     doc.setFontSize(12);
@@ -168,7 +156,7 @@ export default function SinglePrediction({ mode = 'pneumonia', onBack }) {
         const imgHeight = 80;
         doc.addImage(preview, imgType, 14, y, imgWidth, imgHeight);
       } catch (e) {
-        // Ignore image errors; still allow PDF download
+        // Ignore image errors
       }
     }
 
@@ -177,14 +165,14 @@ export default function SinglePrediction({ mode = 'pneumonia', onBack }) {
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12 animate-fade-in">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12 animate-fade-in text-slate-100">
       {/* Back Button */}
       {onBack && (
         <div className="mb-6">
           <button
             type="button"
             onClick={onBack}
-            className="inline-flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-gray-900"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-slate-400 hover:text-white transition-colors cursor-pointer"
           >
             <ArrowLeft className="h-4 w-4" />
             <span>Back to scan selection</span>
@@ -194,10 +182,10 @@ export default function SinglePrediction({ mode = 'pneumonia', onBack }) {
 
       {/* Header */}
       <div className="text-center mb-12">
-        <h1 className="text-4xl font-bold text-gray-900 mb-4">
+        <h1 className="text-4xl font-extrabold text-white mb-4">
           {mode === 'tuberculosis' ? 'Tuberculosis Scan' : 'Pneumonia Scan'}
         </h1>
-        <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+        <p className="text-base text-slate-400 max-w-2xl mx-auto">
           Upload a medical image and let the assistant analyze it using the
           selected disease model.
         </p>
@@ -206,16 +194,16 @@ export default function SinglePrediction({ mode = 'pneumonia', onBack }) {
       <div className="grid lg:grid-cols-2 gap-8">
         {/* Upload Section */}
         <div className="space-y-6">
-          <div className="bg-white rounded-2xl shadow-lg p-8 border border-gray-200">
-            <h2 className="text-xl font-semibold text-gray-900 mb-6 flex items-center gap-2">
-              <Upload className="h-5 w-5 text-blue-600" />
+          <div className="bg-slate-900 rounded-3xl border border-slate-850 p-8 shadow-xl shadow-slate-950/20">
+            <h2 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
+              <Upload className="h-5 w-5 text-blue-500" />
               Upload Medical Image
             </h2>
 
             {/* Model Indicator */}
             <div className="mb-6">
-              <p className="text-sm font-medium text-gray-700 mb-1">Disease model</p>
-              <p className="inline-flex items-center px-4 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-100">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Disease model</p>
+              <p className="inline-flex items-center px-4 py-1.5 rounded-full text-xs font-bold bg-blue-950/50 text-blue-400 border border-blue-900/30">
                 {mode === 'tuberculosis' ? 'Tuberculosis (X-ray)' : 'Pneumonia (X-ray)'}
               </p>
             </div>
@@ -225,7 +213,7 @@ export default function SinglePrediction({ mode = 'pneumonia', onBack }) {
               onDrop={handleDrop}
               onDragOver={handleDragOver}
               onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-blue-500 hover:bg-blue-50/50 transition-all"
+              className="border-2 border-dashed border-slate-800 hover:border-blue-500 bg-slate-950/40 rounded-2xl p-8 text-center cursor-pointer hover:bg-slate-950/80 transition-all"
             >
               <input
                 ref={fileInputRef}
@@ -238,15 +226,15 @@ export default function SinglePrediction({ mode = 'pneumonia', onBack }) {
               {!preview ? (
                 <div className="space-y-4">
                   <div className="flex justify-center">
-                    <div className="bg-blue-100 p-4 rounded-full">
-                      <ImageIcon className="h-10 w-10 text-blue-600" />
+                    <div className="bg-blue-950/50 p-4 rounded-full border border-blue-900/20 text-blue-400">
+                      <ImageIcon className="h-10 w-10" />
                     </div>
                   </div>
                   <div>
-                    <p className="text-lg font-medium text-gray-900 mb-2">
+                    <p className="text-base font-bold text-white mb-1">
                       Click to upload or drag and drop
                     </p>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-xs text-slate-450">
                       PNG, JPG or JPEG (MAX. 10MB)
                     </p>
                   </div>
@@ -257,19 +245,19 @@ export default function SinglePrediction({ mode = 'pneumonia', onBack }) {
                     <img
                       src={preview}
                       alt="Preview"
-                      className="max-h-64 rounded-lg shadow-md"
+                      className="max-h-64 rounded-xl shadow-lg border border-slate-800"
                     />
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         handleReset();
                       }}
-                      className="absolute -top-2 -right-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-600 transition-colors"
+                      className="absolute -top-2 -right-2 bg-red-600 text-white p-1.5 rounded-full hover:bg-red-750 transition-colors cursor-pointer"
                     >
                       <X className="h-4 w-4" />
                     </button>
                   </div>
-                  <p className="text-sm text-gray-600 font-medium">
+                  <p className="text-xs text-slate-300 font-semibold truncate max-w-xs mx-auto">
                     {selectedFile?.name}
                   </p>
                 </div>
@@ -281,7 +269,7 @@ export default function SinglePrediction({ mode = 'pneumonia', onBack }) {
               <button
                 onClick={handleAnalyze}
                 disabled={!selectedFile || loading}
-                className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+                className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-blue-700 disabled:bg-slate-850 disabled:text-slate-500 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer"
               >
                 {loading ? (
                   <>
@@ -300,7 +288,7 @@ export default function SinglePrediction({ mode = 'pneumonia', onBack }) {
                 <button
                   onClick={handleReset}
                   disabled={loading}
-                  className="px-6 py-3 rounded-xl font-semibold border-2 border-gray-300 text-gray-700 hover:bg-gray-50 transition-all disabled:opacity-50"
+                  className="px-6 py-3 rounded-xl font-semibold border border-slate-800 text-slate-350 hover:bg-slate-850 hover:text-white transition-all disabled:opacity-50 cursor-pointer"
                 >
                   Reset
                 </button>
@@ -309,40 +297,39 @@ export default function SinglePrediction({ mode = 'pneumonia', onBack }) {
 
             {/* Error Message */}
             {error && (
-              <div className="mt-6 bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
-                <AlertCircle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+              <div className="mt-6 bg-red-950/20 border border-red-900/30 rounded-xl p-4 flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-sm font-medium text-red-900">Error</p>
-                  <p className="text-sm text-red-700 mt-1">{error}</p>
+                  <p className="text-sm font-bold text-red-350">Error</p>
+                  <p className="text-xs text-red-400 mt-0.5">{error}</p>
                 </div>
               </div>
             )}
           </div>
 
           {/* Info Card */}
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
-            <h3 className="font-semibold text-blue-900 mb-3">How to use this prototype</h3>
-            <ul className="space-y-2 text-sm text-blue-800">
+          <div className="bg-blue-950/20 border border-blue-900/30 rounded-2xl p-6">
+            <h3 className="font-bold text-blue-450 mb-3 text-sm">How to use this prototype</h3>
+            <ul className="space-y-2.5 text-xs text-slate-300">
               <li className="flex items-start gap-2">
-                <span className="text-blue-600 mt-1">•</span>
+                <span className="text-blue-500 font-bold">•</span>
                 <span>Use clear, well‑centered medical images captured from trusted sources.</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-blue-600 mt-1">•</span>
+                <span className="text-blue-500 font-bold">•</span>
                 <span>Supported formats: JPEG, JPG, PNG (maximum 10MB per image).</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-blue-600 mt-1">•</span>
+                <span className="text-blue-500 font-bold">•</span>
                 <span>
                   This is an experimental AI assistant, not a medical device
                   and not a replacement for professional diagnosis.
                 </span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-blue-600 mt-1">•</span>
+                <span className="text-blue-500 font-bold">•</span>
                 <span>
-                  Current model is tuned for pneumonia on radiology images and
-                  may not generalize to all image types.
+                  Current model is tuned for chest radiology images and may not generalize to other styles.
                 </span>
               </li>
             </ul>
@@ -351,112 +338,64 @@ export default function SinglePrediction({ mode = 'pneumonia', onBack }) {
 
         {/* Results Section */}
         <div>
-          <div className="bg-white rounded-2xl shadow-lg p-8 border border-gray-200 sticky top-24">
-            <h2 className="text-xl font-semibold text-gray-900 mb-6">
+          <div className="bg-slate-900 rounded-3xl border border-slate-850 p-8 shadow-xl shadow-slate-950/20 sticky top-24">
+            <h2 className="text-lg font-bold text-white mb-6">
               Analysis Results
             </h2>
 
             {!result && !loading && (
-              <div className="text-center py-12">
-                <div className="bg-gray-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <FileText className="h-10 w-10 text-gray-400" />
+              <div className="text-center py-16 border-2 border-dashed border-slate-850 rounded-2xl bg-slate-950/20">
+                <div className="bg-slate-950/50 border border-slate-850 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-500">
+                  <FileText className="h-10 w-10" />
                 </div>
-                <p className="text-gray-500">
+                <p className="text-sm text-slate-400 font-semibold">
                   Upload and analyze an image to see results
                 </p>
               </div>
             )}
 
             {loading && (
-              <div className="text-center py-12">
-                <Loader2 className="h-12 w-12 text-blue-600 animate-spin mx-auto mb-4" />
-                <p className="text-gray-600 font-medium">Analyzing image...</p>
-                <p className="text-sm text-gray-500 mt-2">This may take a few seconds</p>
+              <div className="text-center py-16">
+                <Loader2 className="h-12 w-12 text-blue-500 animate-spin mx-auto mb-4" />
+                <p className="text-white font-bold">Analyzing image...</p>
+                <p className="text-xs text-slate-450 mt-1">This may take a few seconds</p>
               </div>
             )}
 
             {result && (
               <div className="space-y-6 animate-fade-in">
                 {/* Prediction Result */}
-                <div className={`rounded-xl p-6 ${
-                  result.prediction === 'PNEUMONIA' 
-                    ? 'bg-red-50 border-2 border-red-200' 
-                    : 'bg-emerald-50 border-2 border-emerald-200'
+                <div className={`rounded-2xl p-6 border ${
+                  result.prediction !== 'NORMAL' 
+                    ? 'bg-red-950/40 border-red-900/30 text-red-400' 
+                    : 'bg-emerald-950/40 border-emerald-900/30 text-emerald-400'
                 }`}>
-                  <div className="flex items-center gap-3 mb-3">
-                    {result.prediction === 'PNEUMONIA' ? (
-                      <AlertCircle className="h-8 w-8 text-red-600" />
+                  <div className="flex items-center gap-4.5 mb-4">
+                    {result.prediction !== 'NORMAL' ? (
+                      <AlertCircle className="h-9 w-9 text-red-500" />
                     ) : (
-                      <CheckCircle className="h-8 w-8 text-emerald-600" />
+                      <CheckCircle className="h-9 w-9 text-emerald-500" />
                     )}
                     <div>
-                      <p className="text-sm text-gray-600 font-medium">Prediction</p>
-                      <p className={`text-2xl font-bold ${
-                        result.prediction === 'PNEUMONIA' ? 'text-red-900' : 'text-emerald-900'
-                      }`}>
+                      <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Prediction</p>
+                      <p className="text-2xl font-bold mt-0.5">
                         {result.prediction}
                       </p>
                     </div>
                   </div>
-                  <div className="mt-4">
-                    <div className="flex justify-between text-sm mb-2">
-                      <span className="font-medium text-gray-700">Confidence</span>
-                      <span className="font-bold text-gray-900">{result.confidence}%</span>
+                  
+                  <div className="mt-4 pt-2 border-t border-slate-850">
+                    <div className="flex justify-between text-xs font-semibold mb-2">
+                      <span className="text-slate-450">Confidence</span>
+                      <span className="text-white font-bold">{result.confidence}%</span>
                     </div>
-                    <div className="bg-white/50 rounded-full h-3 overflow-hidden">
+                    <div className="bg-slate-950 border border-slate-900 rounded-full h-3 overflow-hidden">
                       <div
                         className={`h-full rounded-full transition-all duration-1000 ${
-                          result.prediction === 'PNEUMONIA' ? 'bg-red-500' : 'bg-emerald-500'
+                          result.prediction !== 'NORMAL' ? 'bg-red-500' : 'bg-emerald-500'
                         }`}
                         style={{ width: `${result.confidence}%` }}
                       ></div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Probability Breakdown */}
-                <div className="space-y-4">
-                  <h3 className="font-semibold text-gray-900">Detailed Probability</h3>
-                  
-                  <div className="space-y-3">
-                    <div>
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="text-sm font-medium text-gray-700">Normal</span>
-                        <span className="text-sm font-bold text-gray-900">
-                          {result.probability.normal}%
-                        </span>
-                      </div>
-                      <div className="bg-gray-200 rounded-full h-2 overflow-hidden">
-                        <div
-                          className="bg-emerald-500 h-full rounded-full transition-all duration-1000"
-                          style={{ width: `${result.probability.normal}%` }}
-                        ></div>
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="text-sm font-medium text-gray-700">
-                          {result.model_used === 'tuberculosis' ? 'Tuberculosis' : 'Pneumonia'}
-                        </span>
-                        <span className="text-sm font-bold text-gray-900">
-                          {result.model_used === 'tuberculosis'
-                            ? result.probability.tuberculosis
-                            : result.probability.pneumonia}%
-                        </span>
-                      </div>
-                      <div className="bg-gray-200 rounded-full h-2 overflow-hidden">
-                        <div
-                          className="bg-red-500 h-full rounded-full transition-all duration-1000"
-                          style={{
-                            width: `${
-                              result.model_used === 'tuberculosis'
-                                ? result.probability.tuberculosis
-                                : result.probability.pneumonia
-                            }%`,
-                          }}
-                        ></div>
-                      </div>
                     </div>
                   </div>
                 </div>
@@ -466,7 +405,7 @@ export default function SinglePrediction({ mode = 'pneumonia', onBack }) {
                   <button
                     type="button"
                     onClick={handleDownloadReport}
-                    className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-semibold bg-gray-900 text-white hover:bg-gray-800 transition-colors shadow-sm"
+                    className="inline-flex items-center px-4.5 py-2.5 rounded-xl text-sm font-bold bg-slate-100 text-slate-900 hover:bg-white transition-colors shadow-sm cursor-pointer"
                   >
                     <FileText className="h-4 w-4 mr-2" />
                     Download report
@@ -474,8 +413,8 @@ export default function SinglePrediction({ mode = 'pneumonia', onBack }) {
                 </div>
 
                 {/* Disclaimer */}
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                  <p className="text-xs text-yellow-800 leading-relaxed">
+                <div className="bg-yellow-950/20 border border-yellow-900/20 rounded-xl p-4">
+                  <p className="text-xs text-yellow-300 leading-relaxed">
                     <strong>Disclaimer:</strong> This AI analysis is for informational purposes only 
                     and should not replace professional medical diagnosis. Please consult with a 
                     qualified healthcare provider for medical advice.

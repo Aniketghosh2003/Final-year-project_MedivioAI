@@ -1,7 +1,7 @@
 import os
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, g
 from flask_cors import CORS
 import tensorflow as tf
 from tensorflow import keras
@@ -9,6 +9,11 @@ import numpy as np
 from PIL import Image
 import io
 import base64
+import datetime
+import jwt
+from bson import ObjectId
+from db import users_collection, records_collection
+from auth import hash_password, check_password, generate_token, token_required
 
 app = Flask(__name__)
 CORS(app)
@@ -67,7 +72,11 @@ def index():
         "models_loaded": list(models.keys()),
         "endpoints": [
             {"method": "GET", "path": "/api/health"},
-            {"method": "POST", "path": "/api/predict"}
+            {"method": "POST", "path": "/api/predict"},
+            {"method": "POST", "path": "/api/auth/register"},
+            {"method": "POST", "path": "/api/auth/login"},
+            {"method": "GET", "path": "/api/auth/profile"},
+            {"method": "GET", "path": "/api/records"}
         ]
     })
 
@@ -83,6 +92,166 @@ def health_check():
         'status': 'healthy',
         'models_loaded': list(models.keys())
     })
+
+# ==========================================
+# AUTHENTICATION ENDPOINTS
+# ==========================================
+
+@app.route('/api/auth/register', methods=['POST'])
+def register():
+    try:
+        data = request.json or {}
+        email = data.get('email', '').strip().lower()
+        password = data.get('password', '')
+        name = data.get('name', '').strip()
+        age = data.get('age')
+        gender = data.get('gender', '').strip()
+        
+        if not email or not password or not name:
+            return jsonify({
+                'success': False,
+                'error': 'Email, password, and name are required'
+            }), 400
+            
+        # Check if user already exists
+        existing_user = users_collection.find_one({'email': email})
+        if existing_user:
+            return jsonify({
+                'success': False,
+                'error': 'User with this email already exists'
+            }), 400
+            
+        # Hash password and save
+        hashed_password = hash_password(password)
+        new_user = {
+            'email': email,
+            'password': hashed_password,
+            'name': name,
+            'age': age,
+            'gender': gender,
+            'created_at': datetime.datetime.utcnow()
+        }
+        
+        result = users_collection.insert_one(new_user)
+        token = generate_token(result.inserted_id)
+        
+        return jsonify({
+            'success': True,
+            'message': 'Account registered successfully',
+            'token': token,
+            'user': {
+                'id': str(result.inserted_id),
+                'email': email,
+                'name': name,
+                'age': age,
+                'gender': gender
+            }
+        }), 201
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/auth/login', methods=['POST'])
+def login():
+    try:
+        data = request.json or {}
+        email = data.get('email', '').strip().lower()
+        password = data.get('password', '')
+        
+        if not email or not password:
+            return jsonify({
+                'success': False,
+                'error': 'Email and password are required'
+            }), 400
+            
+        user = users_collection.find_one({'email': email})
+        if not user or not check_password(password, user['password']):
+            return jsonify({
+                'success': False,
+                'error': 'Invalid email or password'
+            }), 401
+            
+        token = generate_token(user['_id'])
+        
+        return jsonify({
+            'success': True,
+            'message': 'Login successful',
+            'token': token,
+            'user': {
+                'id': str(user['_id']),
+                'email': user['email'],
+                'name': user['name'],
+                'age': user.get('age'),
+                'gender': user.get('gender')
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/auth/profile', methods=['GET'])
+@token_required
+def get_profile():
+    try:
+        user = g.current_user
+        return jsonify({
+            'success': True,
+            'user': {
+                'id': str(user['_id']),
+                'email': user['email'],
+                'name': user['name'],
+                'age': user.get('age'),
+                'gender': user.get('gender'),
+                'created_at': user.get('created_at').isoformat() if isinstance(user.get('created_at'), datetime.datetime) else user.get('created_at')
+            }
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+# ==========================================
+# MEDICAL RECORDS ENDPOINTS
+# ==========================================
+
+@app.route('/api/records', methods=['GET'])
+@token_required
+def get_records():
+    try:
+        user_id = g.current_user['_id']
+        cursor = records_collection.find({'user_id': user_id}).sort('timestamp', -1)
+        records = []
+        for r in cursor:
+            records.append({
+                'id': str(r['_id']),
+                'model_used': r['model_used'],
+                'prediction': r['prediction'],
+                'confidence': r['confidence'],
+                'probability': r.get('probability', {}),
+                'timestamp': r['timestamp'].isoformat() if isinstance(r['timestamp'], datetime.datetime) else r['timestamp'],
+                'filename': r.get('filename', 'Unknown'),
+                'image_preview': r.get('image_preview') # Base64 thumbnail
+            })
+            
+        return jsonify({
+            'success': True,
+            'records': records
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 @app.route('/api/predict', methods=['POST'])
 def predict():
@@ -131,6 +300,54 @@ def predict():
         else:
             predicted_class = 'NORMAL'
             confidence = (1 - probability) * 100
+
+        # Check if user is authenticated (optional)
+        current_user_id = None
+        if 'Authorization' in request.headers:
+            auth_header = request.headers['Authorization']
+            if auth_header.startswith('Bearer '):
+                token = auth_header.split(" ")[1]
+                try:
+                    from auth import JWT_SECRET
+                    payload = jwt.decode(token, JWT_SECRET, algorithms=['HS256'])
+                    current_user_id = payload['sub']
+                except Exception as e:
+                    print(f"Failed to authenticate optional token in predict: {e}")
+
+        # Save record if authenticated user
+        if current_user_id:
+            try:
+                # Generate preview
+                image_preview = None
+                try:
+                    thumb = image.copy()
+                    thumb.thumbnail((150, 150))
+                    buffered = io.BytesIO()
+                    if thumb.mode != 'RGB':
+                        thumb = thumb.convert('RGB')
+                    thumb.save(buffered, format="JPEG", quality=70)
+                    img_str = base64.b64encode(buffered.getvalue()).decode('utf-8')
+                    image_preview = f"data:image/jpeg;base64,{img_str}"
+                except Exception as thumb_err:
+                    print(f"Error creating thumbnail: {thumb_err}")
+
+                record = {
+                    'user_id': ObjectId(current_user_id),
+                    'model_used': model_name,
+                    'prediction': predicted_class,
+                    'confidence': round(confidence, 2),
+                    'probability': {
+                        'normal': round((1 - probability) * 100, 2),
+                        positive_label.lower(): round(probability * 100, 2)
+                    },
+                    'timestamp': datetime.datetime.utcnow(),
+                    'filename': file.filename,
+                    'image_preview': image_preview
+                }
+                records_collection.insert_one(record)
+                print(f"Successfully saved record for user {current_user_id}")
+            except Exception as save_err:
+                print(f"Failed to save prediction record: {save_err}")
 
         return jsonify({
             'success': True,

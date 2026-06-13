@@ -1,1 +1,19 @@
-data
+# Virtual environment
+.venv/
+venv/
+
+# Model files
+backend/models/
+
+# Debug/log files
+*.pyc
+*.log
+
+# Data files (if large or sensitive)
+data/
+
+# Large datasets
+./Dataset/
+
+# Environment variables
+.env
