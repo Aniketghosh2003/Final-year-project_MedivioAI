@@ -2,15 +2,15 @@ import { useState, useRef } from 'react';
 import { Upload, X, CheckCircle, AlertCircle, Loader2, Image as ImageIcon, FileText, ArrowLeft } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import axios from 'axios';
+import toast from 'react-hot-toast';
 
-const API_URL = 'http://localhost:5000';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 export default function SinglePrediction({ mode = 'pneumonia', token, onBack }) {
   const [selectedFile, setSelectedFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
-  const [error, setError] = useState(null);
   const [model] = useState(mode === 'tuberculosis' ? 'tuberculosis' : 'pneumonia');
   const fileInputRef = useRef(null);
 
@@ -18,12 +18,11 @@ export default function SinglePrediction({ mode = 'pneumonia', token, onBack }) 
     const file = event.target.files?.[0];
     if (file) {
       if (!file.type.startsWith('image/')) {
-        setError('Please select a valid image file');
+        toast.error('Please select a valid image file');
         return;
       }
       
       setSelectedFile(file);
-      setError(null);
       setResult(null);
 
       // Create preview
@@ -40,12 +39,11 @@ export default function SinglePrediction({ mode = 'pneumonia', token, onBack }) 
     const file = event.dataTransfer.files?.[0];
     if (file) {
       if (!file.type.startsWith('image/')) {
-        setError('Please select a valid image file');
+        toast.error('Please select a valid image file');
         return;
       }
       
       setSelectedFile(file);
-      setError(null);
       setResult(null);
 
       const reader = new FileReader();
@@ -62,12 +60,11 @@ export default function SinglePrediction({ mode = 'pneumonia', token, onBack }) 
 
   const handleAnalyze = async () => {
     if (!selectedFile) {
-      setError('Please select an image first');
+      toast.error('Please select an image first');
       return;
     }
 
     setLoading(true);
-    setError(null);
     setResult(null);
 
     try {
@@ -86,11 +83,12 @@ export default function SinglePrediction({ mode = 'pneumonia', token, onBack }) 
 
       if (response.data.success) {
         setResult(response.data);
+        toast.success('Analysis completed');
       } else {
-        setError(response.data.error || 'Analysis failed');
+        toast.error(response.data.error || 'Analysis failed');
       }
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to connect to server. Make sure the backend is running on port 5000.');
+      toast.error(err.response?.data?.error || 'Failed to connect to server. Make sure the backend is running on port 5000.');
     } finally {
       setLoading(false);
     }
@@ -100,7 +98,6 @@ export default function SinglePrediction({ mode = 'pneumonia', token, onBack }) 
     setSelectedFile(null);
     setPreview(null);
     setResult(null);
-    setError(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -156,7 +153,7 @@ export default function SinglePrediction({ mode = 'pneumonia', token, onBack }) 
         const imgHeight = 80;
         doc.addImage(preview, imgType, 14, y, imgWidth, imgHeight);
       } catch (e) {
-        // Ignore image errors
+        // Ignore image errors during PDF export.
       }
     }
 
@@ -295,16 +292,6 @@ export default function SinglePrediction({ mode = 'pneumonia', token, onBack }) 
               )}
             </div>
 
-            {/* Error Message */}
-            {error && (
-              <div className="mt-6 bg-red-950/20 border border-red-900/30 rounded-xl p-4 flex items-start gap-3">
-                <AlertCircle className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-sm font-bold text-red-350">Error</p>
-                  <p className="text-xs text-red-400 mt-0.5">{error}</p>
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Info Card */}
@@ -405,7 +392,7 @@ export default function SinglePrediction({ mode = 'pneumonia', token, onBack }) 
                   <button
                     type="button"
                     onClick={handleDownloadReport}
-                    className="inline-flex items-center px-4.5 py-2.5 rounded-xl text-sm font-bold bg-slate-100 text-slate-900 hover:bg-white transition-colors shadow-sm cursor-pointer"
+                    className="inline-flex items-center px-4.5 py-2.5 rounded-xl text-sm font-bold bg-slate-100 text-slate-900 hover:bg-slate-200 transition-colors shadow-sm cursor-pointer"
                   >
                     <FileText className="h-4 w-4 mr-2" />
                     Download report

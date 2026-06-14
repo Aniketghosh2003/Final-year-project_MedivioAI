@@ -2,18 +2,17 @@ import { useState, useEffect } from 'react';
 import { FileText, Loader2, Calendar, User, Mail, Users, RefreshCw, AlertCircle, CheckCircle, Image as ImageIcon, Search } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import axios from 'axios';
+import toast from 'react-hot-toast';
 
-const API_URL = 'http://localhost:5000';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 export default function Dashboard({ token, user, onNavigate }) {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
 
   const fetchRecords = async () => {
     setLoading(true);
-    setError(null);
     try {
       const response = await axios.get(`${API_URL}/api/records`, {
         headers: {
@@ -23,11 +22,12 @@ export default function Dashboard({ token, user, onNavigate }) {
       if (response.data.success) {
         setRecords(response.data.records);
       } else {
-        setError(response.data.error || 'Failed to load records');
+        setRecords([]);
+        toast.error(response.data.error || 'Failed to load records');
       }
     } catch (err) {
-      console.error(err);
-      setError(err.response?.data?.message || 'Could not connect to the backend server.');
+      setRecords([]);
+      toast.error(err.response?.data?.message || 'Could not connect to the backend server.');
     } finally {
       setLoading(false);
     }
@@ -90,7 +90,7 @@ export default function Dashboard({ token, user, onNavigate }) {
         const imgHeight = 80;
         doc.addImage(record.image_preview, imgType, 14, y, imgWidth, imgHeight);
       } catch (e) {
-        console.error('PDF image error:', e);
+        // Ignore image errors during PDF export.
       }
     }
 
@@ -238,22 +238,8 @@ export default function Dashboard({ token, user, onNavigate }) {
               </div>
             )}
 
-            {!loading && error && (
-              <div className="bg-red-950/20 border border-red-900/30 rounded-xl p-6 text-center">
-                <AlertCircle className="h-10 w-10 text-red-500 mx-auto mb-3" />
-                <p className="text-sm text-red-350 font-bold mb-2">Failed to load records</p>
-                <p className="text-xs text-red-400 mb-4">{error}</p>
-                <button
-                  onClick={fetchRecords}
-                  className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all cursor-pointer"
-                >
-                  Retry
-                </button>
-              </div>
-            )}
-
             {/* History Table */}
-            {!loading && !error && filteredRecords.length === 0 && (
+            {!loading && filteredRecords.length === 0 && (
               <div className="text-center py-16 border-2 border-dashed border-slate-850 rounded-xl">
                 <FileText className="h-12 w-12 text-slate-500 mx-auto mb-3" />
                 <p className="text-slate-400 font-semibold">No diagnostic records found</p>
@@ -270,7 +256,7 @@ export default function Dashboard({ token, user, onNavigate }) {
               </div>
             )}
 
-            {!loading && !error && filteredRecords.length > 0 && (
+            {!loading && filteredRecords.length > 0 && (
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-slate-850">
                   <thead>

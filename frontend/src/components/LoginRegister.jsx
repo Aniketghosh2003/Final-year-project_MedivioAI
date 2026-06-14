@@ -1,14 +1,13 @@
 import { useState } from 'react';
-import { Mail, Lock, User, Calendar, Users, LogIn, UserPlus, AlertCircle, Loader2 } from 'lucide-react';
+import { Mail, Lock, User, Calendar, Users, LogIn, UserPlus, Loader2 } from 'lucide-react';
 import axios from 'axios';
+import toast from 'react-hot-toast';
 
-const API_URL = 'http://localhost:5000';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 export default function LoginRegister({ onAuthSuccess, onBackToHome }) {
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-
   // Form states
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -19,7 +18,6 @@ export default function LoginRegister({ onAuthSuccess, onBackToHome }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setError(null);
 
     try {
       if (isLogin) {
@@ -30,9 +28,10 @@ export default function LoginRegister({ onAuthSuccess, onBackToHome }) {
         });
         
         if (response.data.success) {
+          toast.success('Signed in successfully');
           onAuthSuccess(response.data.token, response.data.user);
         } else {
-          setError(response.data.error || 'Login failed');
+          toast.error(response.data.error || 'Login failed');
         }
       } else {
         // Registration request
@@ -45,14 +44,14 @@ export default function LoginRegister({ onAuthSuccess, onBackToHome }) {
         });
 
         if (response.data.success) {
+          toast.success('Account created successfully');
           onAuthSuccess(response.data.token, response.data.user);
         } else {
-          setError(response.data.error || 'Registration failed');
+          toast.error(response.data.error || 'Registration failed');
         }
       }
     } catch (err) {
-      console.error(err);
-      setError(err.response?.data?.error || 'Failed to connect to the authentication server.');
+      toast.error(err.response?.data?.error || 'Failed to connect to the authentication server.');
     } finally {
       setLoading(false);
     }
@@ -67,7 +66,6 @@ export default function LoginRegister({ onAuthSuccess, onBackToHome }) {
             type="button"
             onClick={() => {
               setIsLogin(true);
-              setError(null);
             }}
             className={`flex-1 py-4 text-center font-semibold text-sm transition-all flex items-center justify-center gap-2 border-b-2 cursor-pointer ${
               isLogin
@@ -82,7 +80,6 @@ export default function LoginRegister({ onAuthSuccess, onBackToHome }) {
             type="button"
             onClick={() => {
               setIsLogin(false);
-              setError(null);
             }}
             className={`flex-1 py-4 text-center font-semibold text-sm transition-all flex items-center justify-center gap-2 border-b-2 cursor-pointer ${
               !isLogin
@@ -107,13 +104,6 @@ export default function LoginRegister({ onAuthSuccess, onBackToHome }) {
                 : 'Create an account to securely save scan reports'}
             </p>
           </div>
-
-          {error && (
-            <div className="mb-6 bg-red-950/20 border border-red-900/30 rounded-xl p-4 flex items-start gap-3">
-              <AlertCircle className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
-              <p className="text-xs text-red-400 font-semibold leading-relaxed">{error}</p>
-            </div>
-          )}
 
           <form onSubmit={handleSubmit} className="space-y-4.5">
             {/* Name - Register Only */}

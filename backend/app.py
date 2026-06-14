@@ -1,15 +1,15 @@
 import os
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
+import logging
 from flask import Flask, request, jsonify, g
 from flask_cors import CORS
-import tensorflow as tf
-from tensorflow import keras
 import numpy as np
 from PIL import Image
 import io
 import base64
 import datetime
+import threading
 import jwt
 from bson import ObjectId
 from db import users_collection, records_collection
@@ -17,6 +17,9 @@ from auth import hash_password, check_password, generate_token, token_required
 
 app = Flask(__name__)
 CORS(app)
+
+logging.basicConfig(level=logging.WARNING, format='%(levelname)s: %(message)s')
+logging.getLogger('werkzeug').setLevel(logging.WARNING)
 
 # Load models
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -28,22 +31,50 @@ MODEL_PATHS = {
 }
 
 models = {}
+models_ready = False
+models_loading = False
+models_load_error = None
 
 
 def load_models():
     """Load available disease models into memory."""
+    global models_ready, models_loading, models_load_error
 
-    # Load disease-specific models
-    for name, path in MODEL_PATHS.items():
-        try:
-            models[name] = keras.models.load_model(path)
-            print(f"Loaded {name} model from {path}")
-        except Exception as e:
-            print(f"Error loading {name} model from {path}: {e}")
+    if models_ready or models_loading:
+        return
+
+    models_loading = True
+
+    try:
+        from tensorflow import keras
+        keras.utils.disable_interactive_logging()
+        import tensorflow as tf
+        tf.get_logger().setLevel('ERROR')
+
+        # Load disease-specific models
+        for name, path in MODEL_PATHS.items():
+            try:
+                models[name] = keras.models.load_model(path)
+            except Exception as e:
+                logging.warning("Error loading %s model from %s: %s", name, path, e)
+
+        models_ready = len(models) > 0
+        if not models_ready:
+            models_load_error = 'No models could be loaded'
+    except Exception as e:
+        models_load_error = str(e)
+        logging.error("Failed to load models: %s", e)
+    finally:
+        models_loading = False
 
 
-# Load models on startup
-load_models()
+def start_model_loading():
+    """Load models in a background thread so the API can start quickly."""
+    threading.Thread(target=load_models, daemon=True).start()
+
+
+# Start loading models without blocking app startup.
+start_model_loading()
 
 
 def preprocess_image(image, size=(224, 224)):
@@ -257,6 +288,15 @@ def get_records():
 def predict():
     """Prediction endpoint"""
     try:
+        if not models_ready and not models_loading and not models:
+            load_models()
+
+        if not models:
+            return jsonify({
+                'success': False,
+                'error': models_load_error or 'Models are still loading. Please try again in a moment.'
+            }), 503
+
         # Check if image is in request
         if 'image' not in request.files:
             return jsonify({
@@ -312,7 +352,7 @@ def predict():
                     payload = jwt.decode(token, JWT_SECRET, algorithms=['HS256'])
                     current_user_id = payload['sub']
                 except Exception as e:
-                    print(f"Failed to authenticate optional token in predict: {e}")
+                    logging.debug("Optional token authentication failed in predict: %s", e)
 
         # Save record if authenticated user
         if current_user_id:
@@ -329,7 +369,7 @@ def predict():
                     img_str = base64.b64encode(buffered.getvalue()).decode('utf-8')
                     image_preview = f"data:image/jpeg;base64,{img_str}"
                 except Exception as thumb_err:
-                    print(f"Error creating thumbnail: {thumb_err}")
+                    logging.debug("Error creating thumbnail: %s", thumb_err)
 
                 record = {
                     'user_id': ObjectId(current_user_id),
@@ -345,9 +385,8 @@ def predict():
                     'image_preview': image_preview
                 }
                 records_collection.insert_one(record)
-                print(f"Successfully saved record for user {current_user_id}")
             except Exception as save_err:
-                print(f"Failed to save prediction record: {save_err}")
+                logging.warning("Failed to save prediction record: %s", save_err)
 
         return jsonify({
             'success': True,
@@ -368,4 +407,4 @@ def predict():
 
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(debug=True, use_reloader=False, threaded=True, port=5000)
