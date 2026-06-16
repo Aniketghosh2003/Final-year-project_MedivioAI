@@ -1,16 +1,13 @@
 import os
-os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
-
 import logging
 from flask import Flask, request, jsonify, g
 from flask_cors import CORS
-import numpy as np
 from PIL import Image
 import io
 import base64
 import datetime
-import threading
 import jwt
+import requests
 from bson import ObjectId
 from db import users_collection, records_collection
 from auth import hash_password, check_password, generate_token, token_required
@@ -21,78 +18,8 @@ CORS(app)
 logging.basicConfig(level=logging.WARNING, format='%(levelname)s: %(message)s')
 logging.getLogger('werkzeug').setLevel(logging.WARNING)
 
-# Load models
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-# Disease detection models
-MODEL_PATHS = {
-    "pneumonia": os.path.join(BASE_DIR, 'models', 'pneumonia', 'pneumonia_model_best.keras'),
-    "tuberculosis": os.path.join(BASE_DIR, 'models', 'tuberculosis', 'tb_detection_model_best.h5'),
-}
-
-models = {}
-models_ready = False
-models_loading = False
-models_load_error = None
-
-
-def load_models():
-    """Load available disease models into memory."""
-    global models_ready, models_loading, models_load_error
-
-    if models_ready or models_loading:
-        return
-
-    models_loading = True
-
-    try:
-        from tensorflow import keras
-        keras.utils.disable_interactive_logging()
-        import tensorflow as tf
-        tf.get_logger().setLevel('ERROR')
-
-        # Load disease-specific models
-        for name, path in MODEL_PATHS.items():
-            try:
-                models[name] = keras.models.load_model(path)
-            except Exception as e:
-                logging.warning("Error loading %s model from %s: %s", name, path, e)
-
-        models_ready = len(models) > 0
-        if not models_ready:
-            models_load_error = 'No models could be loaded'
-    except Exception as e:
-        models_load_error = str(e)
-        logging.error("Failed to load models: %s", e)
-    finally:
-        models_loading = False
-
-
-def start_model_loading():
-    """Load models in a background thread so the API can start quickly."""
-    threading.Thread(target=load_models, daemon=True).start()
-
-
-# Start loading models without blocking app startup.
-start_model_loading()
-
-
-def preprocess_image(image, size=(224, 224)):
-    """Preprocess image for model prediction."""
-    # Convert to RGB if needed
-    if image.mode != 'RGB':
-        image = image.convert('RGB')
-
-    # Resize to desired input size
-    image = image.resize(size)
-
-    # Convert to array and normalize
-    img_array = np.array(image).astype("float32") / 255.0
-
-    # Add batch dimension
-    img_array = np.expand_dims(img_array, axis=0)
-
-    return img_array
+# Hugging Face Space endpoint for model inference
+HF_SPACE_URL = "https://aniketghoshcoder-medivio-models.hf.space/predict"
 
 @app.get("/")
 def index():
@@ -100,7 +27,6 @@ def index():
     return jsonify({
         "app": "MedivioAI Backend",
         "status": "running",
-        "models_loaded": list(models.keys()),
         "endpoints": [
             {"method": "GET", "path": "/api/health"},
             {"method": "POST", "path": "/api/predict"},
@@ -121,7 +47,7 @@ def health_check():
     """Health check endpoint"""
     return jsonify({
         'status': 'healthy',
-        'models_loaded': list(models.keys())
+        'inference_url': HF_SPACE_URL
     })
 
 # ==========================================
@@ -288,15 +214,6 @@ def get_records():
 def predict():
     """Prediction endpoint"""
     try:
-        if not models_ready and not models_loading and not models:
-            load_models()
-
-        if not models:
-            return jsonify({
-                'success': False,
-                'error': models_load_error or 'Models are still loading. Please try again in a moment.'
-            }), 503
-
         # Check if image is in request
         if 'image' not in request.files:
             return jsonify({
@@ -305,28 +222,31 @@ def predict():
             }), 400
         
         file = request.files['image']
+        model_name = request.form.get('model', 'pneumonia').lower()
+
+        # Read file bytes
         image_bytes = file.read()
 
-        # Open image once and reuse
-        image = Image.open(io.BytesIO(image_bytes))
-        
-        # Run disease-specific model (pneumonia / tuberculosis)
-        # Select disease model (default to pneumonia)
-        model_name = request.form.get('model', 'pneumonia').lower()
-        if model_name not in models:
+        # Call the Hugging Face Space model service
+        try:
+            files = {'image': (file.filename, image_bytes, file.content_type)}
+            data = {'model': model_name}
+            response = requests.post(HF_SPACE_URL, files=files, data=data)
+            response.raise_for_status()
+            result = response.json()
+        except Exception as e:
             return jsonify({
                 'success': False,
-                'error': f"Requested model '{model_name}' is not available",
-                'available_models': list(models.keys()),
+                'error': f"Hugging Face Inference Error: {str(e)}"
+            }), 502
+
+        if not result.get('success'):
+            return jsonify({
+                'success': False,
+                'error': result.get('error', 'Inference failed')
             }), 400
-        model = models[model_name]
 
-        # Reuse the same image object but preprocess for disease model input size (224x224)
-        disease_input = preprocess_image(image, size=(224, 224))
-
-        # Make prediction
-        prediction = model.predict(disease_input, verbose=0)
-        probability = float(prediction[0][0])
+        probability = float(result['probability'])
 
         # Determine class labels based on model
         if model_name == 'tuberculosis':
@@ -360,6 +280,7 @@ def predict():
                 # Generate preview
                 image_preview = None
                 try:
+                    image = Image.open(io.BytesIO(image_bytes))
                     thumb = image.copy()
                     thumb.thumbnail((150, 150))
                     buffered = io.BytesIO()
