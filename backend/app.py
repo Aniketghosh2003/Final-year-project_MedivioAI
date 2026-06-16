@@ -5,7 +5,7 @@ from flask_cors import CORS
 from PIL import Image
 import io
 import base64
-import datetime
+from datetime import datetime, timezone
 import jwt
 import requests
 from bson import ObjectId
@@ -86,7 +86,7 @@ def register():
             'name': name,
             'age': age,
             'gender': gender,
-            'created_at': datetime.datetime.utcnow()
+            'created_at': datetime.now(timezone.utc)
         }
         
         result = users_collection.insert_one(new_user)
@@ -167,7 +167,7 @@ def get_profile():
                 'name': user['name'],
                 'age': user.get('age'),
                 'gender': user.get('gender'),
-                'created_at': user.get('created_at').isoformat() if isinstance(user.get('created_at'), datetime.datetime) else user.get('created_at')
+                'created_at': user.get('created_at').isoformat() if isinstance(user.get('created_at'), datetime) else user.get('created_at')
             }
         })
     except Exception as e:
@@ -195,7 +195,7 @@ def get_records():
                 'prediction': r['prediction'],
                 'confidence': r['confidence'],
                 'probability': r.get('probability', {}),
-                'timestamp': r['timestamp'].isoformat() if isinstance(r['timestamp'], datetime.datetime) else r['timestamp'],
+                'timestamp': r['timestamp'].isoformat() if isinstance(r['timestamp'], datetime) else r['timestamp'],
                 'filename': r.get('filename', 'Unknown'),
                 'image_preview': r.get('image_preview') # Base64 thumbnail
             })
@@ -301,7 +301,7 @@ def predict():
                         'normal': round((1 - probability) * 100, 2),
                         positive_label.lower(): round(probability * 100, 2)
                     },
-                    'timestamp': datetime.datetime.utcnow(),
+                    'timestamp': datetime.now(timezone.utc),
                     'filename': file.filename,
                     'image_preview': image_preview
                 }
