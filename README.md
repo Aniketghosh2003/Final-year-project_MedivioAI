@@ -214,7 +214,7 @@ All requests should be sent to the backend base URL (e.g. `https://your-backend.
 
 | Dashboard View | Upload & Analysis |
 | :---: | :---: |
-| ![Dashboard Placeholder](https://via.placeholder.com/600x350?text=Medivio+AI+Dashboard+View) | ![Inference Placeholder](https://via.placeholder.com/600x350?text=CXR+Inference+Result+Page) |
+| ![Dashboard Placeholder](./frontend/src/assets/Dashboard.png) | ![Inference Placeholder](./frontend/src/assets/Scans.png) |
 
 ---
 
