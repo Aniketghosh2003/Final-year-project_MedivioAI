@@ -22,8 +22,9 @@ const StyledWrapper = styled.div`
   align-items: center;
   justify-content: center;
   background:
-    radial-gradient(circle at top, rgba(56, 189, 248, 0.16), transparent 36%),
-    linear-gradient(135deg, #020617 0%, #0f172a 48%, #020617 100%);
+    radial-gradient(circle at top, rgba(37, 99, 235, 0.2), transparent 34%),
+    radial-gradient(circle at bottom, rgba(34, 211, 238, 0.12), transparent 28%),
+    linear-gradient(135deg, #020617 0%, #0f172a 50%, #020617 100%);
 
   .wrapper {
     width: 200px;
@@ -37,10 +38,11 @@ const StyledWrapper = styled.div`
     height: 20px;
     position: absolute;
     border-radius: 50%;
-    background-color: #fff;
+    background: linear-gradient(180deg, #60a5fa 0%, #e0f2fe 100%);
     left: 15%;
     transform-origin: 50%;
     animation: circle7124 0.5s alternate infinite ease;
+    box-shadow: 0 0 18px rgba(59, 130, 246, 0.35);
   }
 
   @keyframes circle7124 {
@@ -77,7 +79,7 @@ const StyledWrapper = styled.div`
     width: 20px;
     height: 4px;
     border-radius: 50%;
-    background-color: rgba(0, 0, 0, 0.9);
+    background-color: rgba(15, 23, 42, 0.92);
     position: absolute;
     top: 62px;
     transform-origin: 50%;
@@ -85,6 +87,7 @@ const StyledWrapper = styled.div`
     left: 15%;
     filter: blur(1px);
     animation: shadow046 0.5s alternate infinite ease;
+    box-shadow: 0 0 14px rgba(14, 165, 233, 0.08);
   }
 
   @keyframes shadow046 {
