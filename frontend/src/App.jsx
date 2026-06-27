@@ -7,6 +7,7 @@ import Footer from './components/Footer';
 import LoginRegister from './components/LoginRegister';
 import Dashboard from './components/Dashboard';
 import { Toaster } from 'react-hot-toast';
+import Loader from './components/Loader';
 
 const loadStoredUser = () => {
   const savedUser = localStorage.getItem('user');
@@ -26,10 +27,19 @@ export default function App() {
   const [currentPage, setCurrentPage] = useState(() => sessionStorage.getItem('currentPage') || 'home');
   const [token, setToken] = useState(localStorage.getItem('token') || null);
   const [user, setUser] = useState(loadStoredUser());
+  const [showLoader, setShowLoader] = useState(true);
 
   useEffect(() => {
     sessionStorage.setItem('currentPage', currentPage);
   }, [currentPage]);
+
+  useEffect(() => {
+    const loaderTimer = window.setTimeout(() => {
+      setShowLoader(false);
+    }, 10000);
+
+    return () => window.clearTimeout(loaderTimer);
+  }, []);
 
   const handleAuthSuccess = (newToken, newUser) => {
     setToken(newToken);
@@ -143,6 +153,9 @@ export default function App() {
   };
 
   return (
+    showLoader ? (
+      <Loader />
+    ) : (
     <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100 selection:bg-blue-600 selection:text-white">
       <Toaster
         position="top-right"
@@ -166,5 +179,6 @@ export default function App() {
       </main>
       <Footer />
     </div>
+    )
   );
 }
